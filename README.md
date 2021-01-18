@@ -1,5 +1,5 @@
-# testrail-automation-fenix
-Script that fetches case data for Fenix on Testrail
+# testrail-mobile-json-scripts
+Script that fetches case data for mobile projects on Testrail
 
 TODO
 
