@@ -73,7 +73,7 @@ class Cases:
     def __init__(self):
         pass
     
-    def get_custom_automation_statuses(self, cases):
+    def write_custom_automation_status(self, cases):
         automation_untriaged, automation_suitable, automation_unsuitable, automation_completed, automation_disabled = ([] for i in range(5))
     
         for case in cases:
@@ -91,9 +91,10 @@ class Cases:
                 pass
         
         # Take arrays and write out to json?
-        # json.dumps(array)
-  
-        
+        with open("disabled.json", "w") as f:
+            json.dump(automation_disabled, f)
+
+
 def main():
     args = parse_args(sys.argv[1:])
     logging.basicConfig(format='%(message)s', level=logging.DEBUG)
@@ -105,7 +106,7 @@ def main():
     t.write_json(cases, 'cases.json')
 
     c = Cases()
-    c.get_custom_automation_statuses(cases)
+    c.write_custom_automation_status(cases)
 
 
 if __name__ == '__main__':
