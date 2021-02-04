@@ -5,7 +5,7 @@ import logging
 from testrail import APIClient
 from enum import Enum
 
-_logger = logging.getLogger('xcresult')
+_logger = logging.getLogger('testrail')
 
 def parse_args(cmdln_args):
     parser = argparse.ArgumentParser(
@@ -85,7 +85,7 @@ class Cases:
     def __init__(self):
         pass
     
-    def write_custom_automation_status(self, cases, status):
+    def write_custom_automation_status(self, cases, status, suite):
         automation_untriaged, automation_suitable, automation_unsuitable, automation_completed, automation_disabled = ([] for i in range(5))
     
         for case in cases:
@@ -103,10 +103,12 @@ class Cases:
                 pass
         
         output = []
-        
+        statusFilename = ""
+
         for data in Status:
             for i in status:
                 if i == data.value:
+                    statusFilename += "-" + data.name
                     if i == Status.UNTRIAGED.value:
                         output.append(automation_untriaged)  
                     elif i == Status.SUITABLE.value:
@@ -120,7 +122,8 @@ class Cases:
                     else:
                         pass
 
-        with open("custom-automation-status.json", "w") as f:
+        print(statusFilename)
+        with open("custom-automation-status-{0}{1}.json".format(str(suite), statusFilename), "w") as f:
             json.dump(output, f, sort_keys=True, indent=4)
 
 class Sections:
@@ -128,7 +131,7 @@ class Sections:
     def __init__(self):
         pass
 
-    def write_section_name(self, sections):
+    def write_section_name(self, sections, suite):
         data = []
 
         for s in sections:
@@ -136,7 +139,7 @@ class Sections:
         
         output = json.dumps(data)
 
-        with open('sections-from-suite.json', "w") as f:
+        with open('sections-from-suite-{}.json'.format(str(suite)), "w") as f:
             json.dump(output, f, sort_keys=True, indent=4)
         
 def main():
@@ -151,13 +154,13 @@ def main():
     c = Cases()
     
     cases = t.get_cases(args.project, args.suite)  
-    c.write_custom_automation_status(cases, args.status)
+    c.write_custom_automation_status(cases, args.status, args.suite)
 
     _logger.debug("Writing section data to JSON dump...")
     s = Sections()
     
     sections = t.get_sections(args.project, args.suite)
-    s.write_section_name(sections)
+    s.write_section_name(sections, args.suite)
 
 if __name__ == '__main__':
     main()
