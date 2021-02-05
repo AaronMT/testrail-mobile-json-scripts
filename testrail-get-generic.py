@@ -8,6 +8,7 @@ from enum import Enum
 _logger = logging.getLogger('testrail')
 
 def parse_args(cmdln_args):
+    
     parser = argparse.ArgumentParser(
         description="Script that fetches case data for mobile projects on Testrail"
     )
@@ -33,6 +34,16 @@ def parse_args(cmdln_args):
         type=int,
         nargs='+',
         choices=range(1,6)
+    )
+
+    parser.add_argument(
+        "--stripped",
+        help="Stripped output (default: %(default)",
+        nargs='?',
+        const='no',
+        default='no',
+        required=True,
+        choices=['yes', 'no']
     )
 
     return parser.parse_args(args=cmdln_args)
@@ -85,7 +96,7 @@ class Cases:
     def __init__(self):
         pass
     
-    def write_custom_automation_status(self, cases, status, suite):
+    def write_custom_automation_status(self, cases, status, suite, stripped):
         automation_untriaged, automation_suitable, automation_unsuitable, automation_completed, automation_disabled = ([] for i in range(5))
     
         for case in cases:
@@ -122,16 +133,28 @@ class Cases:
                     else:
                         pass
 
-        print(statusFilename)
         with open("custom-automation-status-{0}{1}.json".format(str(suite), statusFilename), "w") as f:
             json.dump(output, f, sort_keys=True, indent=4)
-
+            
+        if(stripped == "yes"):
+            with open("custom-automation-status-{0}{1}.json".format(str(suite), statusFilename)) as input:
+                s = json.load(input)
+                for suite in s:
+                    for case in suite:
+                        for case_property in case:
+                            if case_property != 'title':
+                                del(case[case_property])
+        else:
+            pass
+        
+        ## Figure out how to strip data we don't care about
+                            
 class Sections:
 
     def __init__(self):
         pass
 
-    def write_section_name(self, sections, suite):
+    def write_section_name(self, sections, suite, stripped):
         data = []
 
         for s in sections:
@@ -141,7 +164,7 @@ class Sections:
 
         with open('sections-from-suite-{}.json'.format(str(suite)), "w") as f:
             json.dump(output, f, sort_keys=True, indent=4)
-        
+
 def main():
     args = parse_args(sys.argv[1:])
     logging.basicConfig(format='%(message)s', level=logging.DEBUG)
@@ -154,13 +177,15 @@ def main():
     c = Cases()
     
     cases = t.get_cases(args.project, args.suite)  
-    c.write_custom_automation_status(cases, args.status, args.suite)
+    c.write_custom_automation_status(cases, args.status, args.suite, args.stripped)
 
     _logger.debug("Writing section data to JSON dump...")
     s = Sections()
     
     sections = t.get_sections(args.project, args.suite)
-    s.write_section_name(sections, args.suite)
+    s.write_section_name(sections, args.suite, args.stripped)
+
+    _logger.debug("Stripping JSON dump...")
 
 if __name__ == '__main__':
     main()
