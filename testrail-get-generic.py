@@ -1,4 +1,5 @@
-import os, sys
+import os
+import sys
 import json
 import argparse
 import logging
@@ -7,10 +8,10 @@ from enum import Enum
 
 _logger = logging.getLogger('testrail')
 
+
 def parse_args(cmdln_args):
-    
     parser = argparse.ArgumentParser(
-        description="Script that fetches case data for mobile projects on Testrail"
+        description="Gets case data for mobile projects on TestRail"
     )
 
     parser.add_argument(
@@ -33,7 +34,7 @@ def parse_args(cmdln_args):
         required=True,
         type=int,
         nargs='+',
-        choices=range(1,6)
+        choices=range(1, 6)
     )
 
     parser.add_argument(
@@ -48,6 +49,7 @@ def parse_args(cmdln_args):
 
     return parser.parse_args(args=cmdln_args)
 
+
 class Status(Enum):
     UNTRIAGED = 1
     SUITABLE = 2
@@ -55,8 +57,8 @@ class Status(Enum):
     COMPLETED = 4
     DISABLED = 5
 
+
 class TestRail:
-    
     def __init__(self):
         self.set_config()
 
@@ -66,14 +68,15 @@ class TestRail:
             self.client.user = os.environ['TESTRAIL_USERNAME']
             self.client.password = os.environ['TESTRAIL_PASSWORD']
         except KeyError:
-            _logger.debug("TESTRAIL_USERNAME and TESTRAIL_PASSWORD environment variables must be set.")
+            _logger.debug("set TESTRAIL_USERNAME and TESTRAIL_PASSWORD")
             exit()
 
     def get_project(self, project_id):
         return self.client.send_get('get_project/{0}'.format(project_id))
 
     def get_cases(self, project_id, suite_id):
-        return self.client.send_get('get_cases/{0}&suite_id={1}'.format(project_id, suite_id))
+        return self.client.send_get(
+            'get_cases/{0}&suite_id={1}'.format(project_id, suite_id))
 
     def get_suites(self, project_id):
         return self.client.send_get('get_suites/{0}'.format(project_id))
@@ -85,20 +88,22 @@ class TestRail:
         return self.client.send_get('get_priorities')
 
     def get_sections(self, project_id, suite_id):
-        return self.client.send_get('get_sections/{0}&suite_id={1}'.format(project_id, suite_id))
-    
+        return self.client.send_get(
+            'get_sections/{0}&suite_id={1}'.format(project_id, suite_id))
+
     def write_json(self, blob, file):
         with open(file, "w") as f:
             json.dump(blob, f, sort_keys=True, indent=4)
 
-class Cases:
 
+class Cases:
     def __init__(self):
         pass
-    
+
     def write_custom_automation_status(self, cases, status, suite, stripped):
-        automation_untriaged, automation_suitable, automation_unsuitable, automation_completed, automation_disabled = ([] for i in range(5))
-    
+        (automation_untriaged, automation_suitable, automation_unsuitable,
+            automation_completed, automation_disabled) = ([] for i in range(5))
+
         for case in cases:
             if case['custom_automation_status'] == Status.DISABLED.value:
                 automation_disabled.append(case)
@@ -112,7 +117,7 @@ class Cases:
                 automation_completed.append(case)
             else:
                 pass
-        
+
         output = []
         statusFilename = ""
 
@@ -121,7 +126,7 @@ class Cases:
                 if i == data.value:
                     statusFilename += "-" + data.name
                     if i == Status.UNTRIAGED.value:
-                        output.append(automation_untriaged)  
+                        output.append(automation_untriaged)
                     elif i == Status.SUITABLE.value:
                         output.append(automation_suitable)
                     elif i == Status.UNSUITABLE.value:
@@ -133,23 +138,28 @@ class Cases:
                     else:
                         pass
 
-        with open("custom-automation-status-{0}{1}.json".format(str(suite), statusFilename), "w") as f:
+        with open("custom-automation-status-{0}{1}.json".format(
+                  str(suite), statusFilename), "w") as f:
             json.dump(output, f, sort_keys=True, indent=4)
-            
-        if(stripped == "yes"):
-            with open("custom-automation-status-{0}{1}.json".format(str(suite), statusFilename)) as input:
+
+        if stripped == "yes":
+            with open("custom-automation-status-{0}{1}.json".format(
+                      str(suite), statusFilename)) as input:
                 s = json.load(input)
                 for x in s:
                     for case in x:
-                        delete = [key for key in case if key != 'title' and key != 'custom_automation_status']
-                        for key in delete: del case[key]
-            with open("custom-automation-status-{0}{1}.json".format(str(suite), statusFilename), "w") as f:
+                        delete = [key for key in case if key != 'title' and
+                                  key != 'custom_automation_status']
+                        for key in delete:
+                            del case[key]
+            with open('custom-automation-status-{0}{1}.json'.format(str(suite),
+                      statusFilename), 'w') as f:
                 json.dump(s, f, sort_keys=True, indent=4)
         else:
             pass
-                            
-class Sections:
 
+
+class Sections:
     def __init__(self):
         pass
 
@@ -158,11 +168,13 @@ class Sections:
 
         for s in sections:
             delete = [key for key in s if key != 'suite_id' and key != 'name']
-            for key in delete: del s[key]
+            for key in delete:
+                del s[key]
             data.append(s)
 
         with open('sections-from-suite-{}.json'.format(str(suite)), "w") as f:
             json.dump(data, f, sort_keys=True, indent=4)
+
 
 def main():
     args = parse_args(sys.argv[1:])
@@ -171,20 +183,24 @@ def main():
     _logger.debug("Fetching project data from Testrail...")
     t = TestRail()
 
-
     _logger.debug("Writing case automation status to JSON dump...")
     c = Cases()
-    
-    cases = t.get_cases(args.project, args.suite)  
-    c.write_custom_automation_status(cases, args.status, args.suite, args.stripped)
+
+    cases = t.get_cases(args.project, args.suite)
+    c.write_custom_automation_status(
+        cases, args.status, args.suite, args.stripped)
 
     _logger.debug("Writing section data to JSON dump...")
     s = Sections()
-    
+
     sections = t.get_sections(args.project, args.suite)
     s.write_section_name(sections, args.suite, args.stripped)
 
-    _logger.debug("Stripping JSON dump...")
+    if args.stripped == "yes":
+        _logger.debug("Stripping JSON dump...")
+    else:
+        pass
+
 
 if __name__ == '__main__':
     main()
