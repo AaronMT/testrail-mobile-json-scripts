@@ -139,15 +139,14 @@ class Cases:
         if(stripped == "yes"):
             with open("custom-automation-status-{0}{1}.json".format(str(suite), statusFilename)) as input:
                 s = json.load(input)
-                for suite in s:
-                    for case in suite:
-                        for case_property in case:
-                            if case_property != 'title':
-                                del(case[case_property])
+                for x in s:
+                    for case in x:
+                        delete = [key for key in case if key != 'title' and key != 'custom_automation_status']
+                        for key in delete: del case[key]
+            with open("custom-automation-status-{0}{1}.json".format(str(suite), statusFilename), "w") as f:
+                json.dump(s, f, sort_keys=True, indent=4)
         else:
             pass
-        
-        ## Figure out how to strip data we don't care about
                             
 class Sections:
 
@@ -158,12 +157,12 @@ class Sections:
         data = []
 
         for s in sections:
-            data.append(s['name'])
-        
-        output = json.dumps(data)
+            delete = [key for key in s if key != 'suite_id' and key != 'name']
+            for key in delete: del s[key]
+            data.append(s)
 
         with open('sections-from-suite-{}.json'.format(str(suite)), "w") as f:
-            json.dump(output, f, sort_keys=True, indent=4)
+            json.dump(data, f, sort_keys=True, indent=4)
 
 def main():
     args = parse_args(sys.argv[1:])
