@@ -47,6 +47,13 @@ def parse_args(cmdln_args):
         choices=['yes', 'no']
     )
 
+    parser.add_argument(
+        "--output",
+        help="Output file for SQL consumption",
+        required=True,
+        default='output.json'
+    )
+
     return parser.parse_args(args=cmdln_args)
 
 
@@ -81,6 +88,9 @@ class TestRail:
     def get_suites(self, project_id):
         return self.client.send_get('get_suites/{0}'.format(project_id))
 
+    def get_suite(self, suite_id):
+        return self.client.send_get('get_suite/{0}'.format(suite_id))
+
     def get_runs(self, project_id):
         return self.client.send_get('get_runs/{0}'.format(project_id))
 
@@ -100,7 +110,17 @@ class Cases:
     def __init__(self):
         pass
 
-    def write_custom_automation_status(self, cases, status, suite, stripped):
+    def write_custom_automation_status(
+        self,
+        cases,
+        status,
+        suite,
+        stripped,
+        p,
+        s,
+        outfile
+    ):
+
         (automation_untriaged, automation_suitable, automation_unsuitable,
             automation_completed, automation_disabled) = ([] for i in range(5))
 
@@ -145,8 +165,8 @@ class Cases:
         if stripped == "yes":
             with open("custom-automation-status-{0}{1}.json".format(
                       str(suite), statusFilename)) as input:
-                s = json.load(input)
-                for x in s:
+                o = json.load(input)
+                for x in o:
                     for case in x:
                         delete = [key for key in case if key != 'title' and
                                   key != 'custom_automation_status']
@@ -154,9 +174,21 @@ class Cases:
                             del case[key]
             with open('custom-automation-status-{0}{1}.json'.format(str(suite),
                       statusFilename), 'w') as f:
-                json.dump(s, f, sort_keys=True, indent=4)
+                json.dump(o, f, sort_keys=True, indent=4)
         else:
             pass
+
+        builder = []
+        builder.append(p['name'])
+        builder.append(s['name'])
+        builder.append(len(automation_untriaged))
+        builder.append(len(automation_suitable))
+        builder.append(len(automation_unsuitable))
+        builder.append(len(automation_completed))
+        builder.append(len(automation_disabled))
+
+        with open(os.path.abspath(outfile), "w") as f:
+            json.dump(builder, f, sort_keys=True, indent=4)
 
 
 class Sections:
@@ -180,15 +212,18 @@ def main():
     args = parse_args(sys.argv[1:])
     logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
-    _logger.debug("Fetching project data from Testrail...")
+    _logger.debug("Fetching project data from TestRail...")
     t = TestRail()
+    p = t.get_project(args.project)
+
+    _logger.debug("Fetching suite data from TestRail...")
+    s = t.get_suite(args.suite)
 
     _logger.debug("Writing case automation status to JSON dump...")
     c = Cases()
-
     cases = t.get_cases(args.project, args.suite)
     c.write_custom_automation_status(
-        cases, args.status, args.suite, args.stripped)
+        cases, args.status, args.suite, args.stripped, p, s, args.output)
 
     _logger.debug("Writing section data to JSON dump...")
     s = Sections()
