@@ -178,17 +178,16 @@ class Cases:
         else:
             pass
 
-        builder = []
-        builder.append(p['name'])
-        builder.append(s['name'])
-        builder.append(len(automation_untriaged))
-        builder.append(len(automation_suitable))
-        builder.append(len(automation_unsuitable))
-        builder.append(len(automation_completed))
-        builder.append(len(automation_disabled))
+        builder = {"project_name": p['name'],
+                   "suite": s['name'],
+                   "untriaged": len(automation_untriaged),
+                   "suitable": len(automation_suitable),
+                   "unsuitable": len(automation_unsuitable),
+                   "completed": len(automation_completed),
+                   "disabled": len(automation_disabled)}
 
         with open(os.path.abspath(outfile), "w") as f:
-            json.dump(builder, f, sort_keys=True, indent=4)
+            json.dump(builder, f, sort_keys=False, indent=4)
 
 
 class Sections:
