@@ -235,6 +235,8 @@ def main():
     else:
         pass
 
+    _logger.debug("Writing summarized JSON dump to {0}...".format(args.output))
+
 
 if __name__ == '__main__':
     main()
