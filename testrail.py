@@ -1,103 +1,270 @@
-"""TestRail API binding for Python 3.x.
-
-(API v2, available since TestRail 3.0)
-
-Compatible with TestRail 3.0 and later.
-
-Learn more:
-
-http://docs.gurock.com/testrail-api2/start
-http://docs.gurock.com/testrail-api2/accessing
-
-Copyright Gurock Software GmbH. See license.md for details.
-"""
-
-import base64
+import os
+import sys
 import json
+import argparse
+import logging
+from testrail_api import APIClient
+from db import insert
+from enum import Enum
 
-import requests
+_logger = logging.getLogger('testrail')
 
 
+def parse_args(cmdln_args):
+    parser = argparse.ArgumentParser(
+        description="Gets case data for mobile projects on TestRail"
+    )
 
-class APIClient:
-    def __init__(self, base_url):
-        self.user = ''
-        self.password = ''
-        if not base_url.endswith('/'):
-            base_url += '/'
-        self.__url = base_url + 'index.php?/api/v2/'
+    parser.add_argument(
+        "--project",
+        help="Use selected project",
+        required=True,
+        type=int
+    )
 
-    def send_get(self, uri, filepath=None):
-        """Issue a GET request (read) against the API.
+    parser.add_argument(
+        "--suite",
+        help="Use selected suite",
+        required=True,
+        type=int
+    )
 
-        Args:
-            uri: The API method to call including parameters, e.g. get_case/1.
-            filepath: The path and file name for attachment download; used only
-                for 'get_attachment/:attachment_id'.
+    parser.add_argument(
+        "--status",
+        help="Custom automation status",
+        required=True,
+        type=int,
+        nargs='+',
+        choices=range(1, 6)
+    )
 
-        Returns:
-            A dict containing the result of the request.
-        """
-        return self.__send_request('GET', uri, filepath)
+    parser.add_argument(
+        "--stripped",
+        help="Stripped output (default: %(default)",
+        nargs='?',
+        const='no',
+        default='no',
+        required=True,
+        choices=['yes', 'no']
+    )
 
-    def send_post(self, uri, data):
-        """Issue a POST request (write) against the API.
+    parser.add_argument(
+        "--output",
+        help="Output file for SQL consumption",
+        required=True,
+        default='output.json'
+    )
 
-        Args:
-            uri: The API method to call, including parameters, e.g. add_case/1.
-            data: The data to submit as part of the request as a dict; strings
-                must be UTF-8 encoded. If adding an attachment, must be the
-                path to the file.
+    return parser.parse_args(args=cmdln_args)
 
-        Returns:
-            A dict containing the result of the request.
-        """
-        return self.__send_request('POST', uri, data)
 
-    def __send_request(self, method, uri, data):
-        url = self.__url + uri
+class Status(Enum):
+    UNTRIAGED = 1
+    SUITABLE = 2
+    UNSUITABLE = 3
+    COMPLETED = 4
+    DISABLED = 5
 
-        auth = str(
-            base64.b64encode(
-                bytes('%s:%s' % (self.user, self.password), 'utf-8')
-            ),
-            'ascii'
-        ).strip()
-        headers = {'Authorization': 'Basic ' + auth}
 
-        if method == 'POST':
-            if uri[:14] == 'add_attachment':    # add_attachment API method
-                files = {'attachment': (open(data, 'rb'))}
-                response = requests.post(url, headers=headers, files=files)
-                files['attachment'].close()
+class TestRail:
+    def __init__(self):
+        self.set_config()
+
+    def set_config(self):
+        self.client = APIClient('https://testrail.stage.mozaws.net')
+        try:
+            self.client.user = os.environ['TESTRAIL_USERNAME']
+            self.client.password = os.environ['TESTRAIL_PASSWORD']
+        except KeyError:
+            _logger.debug("set TESTRAIL_USERNAME and TESTRAIL_PASSWORD")
+            exit()
+
+    def get_project(self, project_id):
+        return self.client.send_get('get_project/{0}'.format(project_id))
+
+    def get_cases(self, project_id, suite_id):
+        return self.client.send_get(
+            'get_cases/{0}&suite_id={1}'.format(project_id, suite_id))
+
+    def get_suites(self, project_id):
+        return self.client.send_get('get_suites/{0}'.format(project_id))
+
+    def get_suite(self, suite_id):
+        return self.client.send_get('get_suite/{0}'.format(suite_id))
+
+    def get_runs(self, project_id):
+        return self.client.send_get('get_runs/{0}'.format(project_id))
+
+    def get_priorities(self):
+        return self.client.send_get('get_priorities')
+
+    def get_sections(self, project_id, suite_id):
+        return self.client.send_get(
+            'get_sections/{0}&suite_id={1}'.format(project_id, suite_id))
+
+    def write_json(self, blob, file):
+        with open(file, "w") as f:
+            json.dump(blob, f, sort_keys=True, indent=4)
+
+
+class Cases:
+    def __init__(self):
+        pass
+
+    def write_custom_automation_status(
+        self,
+        cases,
+        status,
+        suite,
+        stripped,
+        p,
+        s,
+        outfile
+    ):
+
+        (automation_untriaged, automation_suitable, automation_unsuitable,
+            automation_completed, automation_disabled) = ([] for i in range(5))
+
+        for case in cases:
+            if case['custom_automation_status'] == Status.DISABLED.value:
+                automation_disabled.append(case)
+            elif case['custom_automation_status'] == Status.SUITABLE.value:
+                automation_suitable.append(case)
+            elif case['custom_automation_status'] == Status.UNSUITABLE.value:
+                automation_unsuitable.append(case)
+            elif case['custom_automation_status'] == Status.UNTRIAGED.value:
+                automation_untriaged.append(case)
+            elif case['custom_automation_status'] == Status.COMPLETED.value:
+                automation_completed.append(case)
             else:
-                headers['Content-Type'] = 'application/json'
-                payload = bytes(json.dumps(data), 'utf-8')
-                response = requests.post(url, headers=headers, data=payload)
+                pass
+
+        output = []
+        statusFilename = ""
+
+        for data in Status:
+            for i in status:
+                if i == data.value:
+                    statusFilename += "-" + data.name
+                    if i == Status.UNTRIAGED.value:
+                        output.append(automation_untriaged)
+                    elif i == Status.SUITABLE.value:
+                        output.append(automation_suitable)
+                    elif i == Status.UNSUITABLE.value:
+                        output.append(automation_unsuitable)
+                    elif i == Status.COMPLETED.value:
+                        output.append(automation_completed)
+                    elif i == Status.DISABLED.value:
+                        output.append(automation_disabled)
+                    else:
+                        pass
+
+        '''with open("custom-automation-status-{0}{1}.json".format(
+                  str(suite), statusFilename), "w") as f:
+            json.dump(output, f, sort_keys=True, indent=4)
+
+        if stripped == "yes":
+            with open("custom-automation-status-{0}{1}.json".format(
+                      str(suite), statusFilename)) as input:
+                o = json.load(input)
+                for x in o:
+                    for case in x:
+                        delete = [key for key in case if key != 'title' and
+                                  key != 'custom_automation_status']
+                        for key in delete:
+                            del case[key]
+            with open('custom-automation-status-{0}{1}.json'.format(str(suite),
+                      statusFilename), 'w') as f:
+                json.dump(o, f, sort_keys=True, indent=4)
         else:
-            headers['Content-Type'] = 'application/json'
-            response = requests.get(url, headers=headers)
+            pass'''
 
-        if response.status_code > 201:
-            try:
-                error = response.json()
-            except:     # response.content not formatted as JSON
-                error = str(response.content)
-            raise APIError('TestRail API returned HTTP %s (%s)' % (response.status_code, error))
-        else:
-            if uri[:15] == 'get_attachment/':   # Expecting file, not JSON
-                try:
-                    open(data, 'wb').write(response.content)
-                    return (data)
-                except:
-                    return ("Error saving attachment.")
-            else:
-                try:
-                    return response.json()
-                except: # Nothing to return
-                    return {}
+        builder = {"project_name": p['name'],
+                   "suite": s['name'],
+                   "untriaged": len(automation_untriaged),
+                   "suitable": len(automation_suitable),
+                   "unsuitable": len(automation_unsuitable),
+                   "completed": len(automation_completed),
+                   "disabled": len(automation_disabled)}
+
+        with open(os.path.abspath(outfile), "w") as f:
+            json.dump(builder, f, sort_keys=False, indent=4)
 
 
+class Sections:
+    def __init__(self):
+        pass
 
-class APIError(Exception):
-    pass
+    def write_section_name(self, sections, suite, stripped):
+        data = []
+
+        for s in sections:
+            delete = [key for key in s if key != 'suite_id' and key != 'name']
+            for key in delete:
+                del s[key]
+            data.append(s)
+
+        with open('sections-from-suite-{}.json'.format(str(suite)), "w") as f:
+            json.dump(data, f, sort_keys=True, indent=4)
+
+
+class SQL:
+    def __init__(self):
+        pass
+
+    def read_json():
+        with open('testrail_output.json', 'r') as f:
+            data = json.load(f)
+        return data
+
+    def json_to_sql(data):
+        return "INSERT INTO coverage (project_name, suite, untriaged, suitable, unsuitable, completed, disabled) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(
+                data['project_name'],
+                data['suite'],
+                data['untriaged'],
+                data['suitable'],
+                data['unsuitable'],
+                data['completed'],
+                data['disabled'],
+        )
+
+
+def main():
+    args = parse_args(sys.argv[1:])
+    logging.basicConfig(format='%(message)s', level=logging.DEBUG)
+
+    _logger.debug("Fetching project data from TestRail...")
+    t = TestRail()
+    p = t.get_project(args.project)
+
+    _logger.debug("Fetching suite data from TestRail...")
+    s = t.get_suite(args.suite)
+
+    _logger.debug("Writing case automation status to JSON dump...")
+    c = Cases()
+    cases = t.get_cases(args.project, args.suite)
+    c.write_custom_automation_status(
+        cases, args.status, args.suite, args.stripped, p, s, args.output)
+
+    '''_logger.debug("Writing section data to JSON dump...")
+    s = Sections()
+
+    sections = t.get_sections(args.project, args.suite)
+    s.write_section_name(sections, args.suite, args.stripped)'''
+
+    if args.stripped == "yes":
+        _logger.debug("Stripping JSON dump...")
+    else:
+        pass
+
+    _logger.debug("Writing summarized JSON dump to {0}...".format(args.output))
+
+    _logger.debug("Writing SQL insert...")
+    db_sql = SQL()
+    json_data = db_sql.read_json()
+    sql_statement = db_sql.json_to_sql(json_data)
+    insert(sql_statement)
+
+
+if __name__ == '__main__':
+    main()
