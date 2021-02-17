@@ -212,12 +212,12 @@ class SQL:
     def __init__(self):
         pass
 
-    def read_json():
-        with open('testrail_output.json', 'r') as f:
+    def read_json(self, file):
+        with open(file, 'r') as f:
             data = json.load(f)
         return data
 
-    def json_to_sql(data):
+    def json_to_sql(self, data):
         return "INSERT INTO coverage (project_name, suite, untriaged, suitable, unsuitable, completed, disabled) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(
                 data['project_name'],
                 data['suite'],
@@ -225,7 +225,7 @@ class SQL:
                 data['suitable'],
                 data['unsuitable'],
                 data['completed'],
-                data['disabled'],
+                data['disabled']
         )
 
 
@@ -261,7 +261,7 @@ def main():
 
     _logger.debug("Writing SQL insert...")
     db_sql = SQL()
-    json_data = db_sql.read_json()
+    json_data = db_sql.read_json(args.output)
     sql_statement = db_sql.json_to_sql(json_data)
     insert(sql_statement)
 
