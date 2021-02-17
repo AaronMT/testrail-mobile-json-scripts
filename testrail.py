@@ -218,15 +218,17 @@ class SQL:
         return data
 
     def json_to_sql(self, data):
-        return "INSERT INTO coverage (project_name, suite, untriaged, suitable, unsuitable, completed, disabled) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(
-                data['project_name'],
-                data['suite'],
-                data['untriaged'],
-                data['suitable'],
-                data['unsuitable'],
-                data['completed'],
-                data['disabled']
-        )
+        return "INSERT INTO coverage (project_name, suite, untriaged, " \
+               "suitable, unsuitable, completed, disabled) VALUES " \
+                "('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(
+                    data['project_name'],
+                    data['suite'],
+                    data['untriaged'],
+                    data['suitable'],
+                    data['unsuitable'],
+                    data['completed'],
+                    data['disabled']
+                )
 
 
 def main():
