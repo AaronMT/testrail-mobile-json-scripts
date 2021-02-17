@@ -51,7 +51,7 @@ def parse_args(cmdln_args):
     parser.add_argument(
         "--output",
         help="Output file for SQL consumption",
-        required=True,
+        required=False,
         default='output.json'
     )
 
@@ -108,6 +108,8 @@ class TestRail:
 
 
 class Cases:
+    json_data = []
+
     def __init__(self):
         pass
 
@@ -179,16 +181,16 @@ class Cases:
         else:
             pass'''
 
-        builder = {"project_name": p['name'],
-                   "suite": s['name'],
-                   "untriaged": len(automation_untriaged),
-                   "suitable": len(automation_suitable),
-                   "unsuitable": len(automation_unsuitable),
-                   "completed": len(automation_completed),
-                   "disabled": len(automation_disabled)}
+        self.json_data = {"project_name": p['name'],
+                          "suite": s['name'],
+                          "untriaged": len(automation_untriaged),
+                          "suitable": len(automation_suitable),
+                          "unsuitable": len(automation_unsuitable),
+                          "completed": len(automation_completed),
+                          "disabled": len(automation_disabled)}
 
-        with open(os.path.abspath(outfile), "w") as f:
-            json.dump(builder, f, sort_keys=False, indent=4)
+        '''with open(os.path.abspath(outfile), "w") as f:
+            json.dump(builder, f, sort_keys=False, indent=4)'''
 
 
 class Sections:
@@ -211,11 +213,6 @@ class Sections:
 class SQL:
     def __init__(self):
         pass
-
-    def read_json(self, file):
-        with open(file, 'r') as f:
-            data = json.load(f)
-        return data
 
     def json_to_sql(self, data):
         return "INSERT INTO coverage (project_name, suite, untriaged, " \
@@ -252,19 +249,13 @@ def main():
     s = Sections()
 
     sections = t.get_sections(args.project, args.suite)
-    s.write_section_name(sections, args.suite, args.stripped)'''
+    s.write_section_name(sections, args.suite, args.stripped)
 
-    if args.stripped == "yes":
-        _logger.debug("Stripping JSON dump...")
-    else:
-        pass
-
-    _logger.debug("Writing summarized JSON dump to {0}...".format(args.output))
+     _logger.debug("Writing JSON dump to {0}...".format(args.output))'''
 
     _logger.debug("Writing SQL insert...")
-    db_sql = SQL()
-    json_data = db_sql.read_json(args.output)
-    sql_statement = db_sql.json_to_sql(json_data)
+    d = SQL()
+    sql_statement = d.json_to_sql(c.json_data)
     insert(sql_statement)
 
 
