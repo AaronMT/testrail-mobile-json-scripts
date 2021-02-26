@@ -214,18 +214,15 @@ class SQL:
     def __init__(self):
         pass
 
-    def json_to_sql(self, data):
-        return "INSERT INTO coverage (project_name, suite, untriaged, " \
-               "suitable, unsuitable, completed, disabled) VALUES " \
-                "('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(
-                    data['project_name'],
-                    data['suite'],
-                    data['untriaged'],
-                    data['suitable'],
-                    data['unsuitable'],
-                    data['completed'],
-                    data['disabled']
-                )
+    def json_to_sql(self, data, automation_state):
+        return "INSERT INTO test_coverage (project_name, suite, " \
+            "coverage_type, case_count) VALUES " \
+            "('{}', '{}', '{}', '{}')".format(
+                data['project_name'],
+                data['suite'],
+                automation_state,
+                data[automation_state]
+            )
 
 
 def main():
@@ -245,18 +242,14 @@ def main():
     c.write_custom_automation_status(
         cases, args.status, args.suite, args.stripped, p, s, args.output)
 
-    '''_logger.debug("Writing section data to JSON dump...")
-    s = Sections()
-
-    sections = t.get_sections(args.project, args.suite)
-    s.write_section_name(sections, args.suite, args.stripped)
-
-     _logger.debug("Writing JSON dump to {0}...".format(args.output))'''
-
-    _logger.debug("Writing SQL insert...")
+    _logger.debug("Writing SQL inserts for each state...")
     d = SQL()
-    sql_statement = d.json_to_sql(c.json_data)
-    insert(sql_statement)
+
+    for s in Status:
+        for i in args.status:
+            if i == s.value:
+                sql_statement = d.json_to_sql(c.json_data, s.name.lower())
+                insert(sql_statement)
 
 
 if __name__ == '__main__':
