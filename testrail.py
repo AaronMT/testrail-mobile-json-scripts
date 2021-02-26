@@ -214,14 +214,14 @@ class SQL:
     def __init__(self):
         pass
 
-    def json_to_sql(self, data, automation_state):
-        return "INSERT INTO test_coverage (project_name, suite, " \
+    def json_to_sql(self, data):
+        return "INSERT INTO testrail_test_coverage (project_name, suite, " \
             "coverage_type, case_count) VALUES " \
             "('{}', '{}', '{}', '{}')".format(
                 data['project_name'],
                 data['suite'],
-                automation_state,
-                data[automation_state]
+                data['coverage_type'],
+                data['case_count']
             )
 
 
@@ -248,8 +248,12 @@ def main():
     for s in Status:
         for i in args.status:
             if i == s.value:
-                sql_statement = d.json_to_sql(c.json_data, s.name.lower())
-                insert(sql_statement)
+                insert(d.json_to_sql({
+                    "project_name": c.json_data['project_name'],
+                    "suite": c.json_data['suite'],
+                    "coverage_type": s.name.lower(),
+                    "case_count": c.json_data[s.name.lower()]
+                }))
 
 
 if __name__ == '__main__':
