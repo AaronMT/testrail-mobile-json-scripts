@@ -216,11 +216,11 @@ class SQL:
 
     def json_to_sql(self, data):
         return "INSERT INTO testrail_test_coverage (project_name, suite, " \
-            "coverage_type, case_count) VALUES " \
+            "automation_state, case_count) VALUES " \
             "('{}', '{}', '{}', '{}')".format(
                 data['project_name'],
                 data['suite'],
-                data['coverage_type'],
+                data['automation_state'],
                 data['case_count']
             )
 
@@ -251,7 +251,7 @@ def main():
                 insert(d.json_to_sql({
                     "project_name": c.json_data['project_name'],
                     "suite": c.json_data['suite'],
-                    "coverage_type": s.name.lower(),
+                    "automation_state": s.name.lower(),
                     "case_count": c.json_data[s.name.lower()]
                 }))
 
