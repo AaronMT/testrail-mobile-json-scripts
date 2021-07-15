@@ -9,6 +9,10 @@ from enum import Enum
 
 _logger = logging.getLogger('testrail')
 
+MIN_PYTHON = (3, 9)
+if sys.version_info < MIN_PYTHON:
+    sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
+
 
 def parse_args(cmdln_args):
     parser = argparse.ArgumentParser(
