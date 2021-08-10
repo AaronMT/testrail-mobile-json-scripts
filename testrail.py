@@ -1,17 +1,13 @@
+import argparse
+import json
+import logging
 import os
 import sys
-import json
-import argparse
-import logging
-from testrail_api import APIClient
-from db import insert
 from enum import Enum
 
-_logger = logging.getLogger('testrail')
+from testrail_api import APIClient
 
-MIN_PYTHON = (3, 9)
-if sys.version_info < MIN_PYTHON:
-    sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
+_logger = logging.getLogger('testrail')
 
 
 def parse_args(cmdln_args):
@@ -193,8 +189,8 @@ class Cases:
                           "completed": len(automation_completed),
                           "disabled": len(automation_disabled)}
 
-        '''with open(os.path.abspath(outfile), "w") as f:
-            json.dump(builder, f, sort_keys=False, indent=4)'''
+        with open(os.path.abspath(outfile), "w") as f:
+            json.dump(self.json_data, f, sort_keys=False, indent=4)
 
 
 class Sections:
@@ -252,7 +248,7 @@ def main():
     for s in Status:
         for i in args.status:
             if i == s.value:
-                insert(d.json_to_sql({
+                print(d.json_to_sql({
                     "project_name": c.json_data['project_name'],
                     "suite": c.json_data['suite'],
                     "automation_state": s.name.lower(),
