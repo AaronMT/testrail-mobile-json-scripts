@@ -1,3 +1,9 @@
+#! /usr/bin/env python
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 import argparse
 import json
 import logging
@@ -75,9 +81,9 @@ class TestRail:
         try:
             self.client.user = os.environ['TESTRAIL_USERNAME']
             self.client.password = os.environ['TESTRAIL_PASSWORD']
-        except KeyError:
+        except KeyError as err:
             _logger.debug("set TESTRAIL_USERNAME and TESTRAIL_PASSWORD")
-            exit()
+            SystemExit(err)
 
     def get_project(self, project_id):
         return self.client.send_get('get_project/{0}'.format(project_id))
@@ -108,10 +114,13 @@ class TestRail:
 
 
 class Cases:
-    json_data = []
+    json_data, output = ([] for i in range(2))
+    statusFilename = str()
 
     def __init__(self):
-        pass
+        self.json_data = []
+        self.output = []
+        self.statusFilename = str()
 
     def write_custom_automation_status(
         self,
@@ -141,23 +150,20 @@ class Cases:
             else:
                 pass
 
-        output = []
-        statusFilename = ""
-
         for data in Status:
             for i in status:
                 if i == data.value:
-                    statusFilename += "-" + data.name
+                    self.statusFilename += "-" + data.name
                     if i == Status.UNTRIAGED.value:
-                        output.append(automation_untriaged)
+                        self.output.append(automation_untriaged)
                     elif i == Status.SUITABLE.value:
-                        output.append(automation_suitable)
+                        self.output.append(automation_suitable)
                     elif i == Status.UNSUITABLE.value:
-                        output.append(automation_unsuitable)
+                        self.output.append(automation_unsuitable)
                     elif i == Status.COMPLETED.value:
-                        output.append(automation_completed)
+                        self.output.append(automation_completed)
                     elif i == Status.DISABLED.value:
-                        output.append(automation_disabled)
+                        self.output.append(automation_disabled)
                     else:
                         pass
 
