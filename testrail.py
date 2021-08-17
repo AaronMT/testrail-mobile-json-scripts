@@ -45,6 +45,16 @@ def parse_args(cmdln_args):
     )
 
     parser.add_argument(
+        "--type",
+        help="Case types to filter on",
+        required=False,
+        type=int,
+        nargs='+',
+        choices=range(1, 15),
+        default=range(1, 15)
+    )
+
+    parser.add_argument(
         "--stripped",
         help="Stripped output (default: %(default)",
         nargs='?',
@@ -88,9 +98,12 @@ class TestRail:
     def get_project(self, project_id):
         return self.client.send_get('get_project/{0}'.format(project_id))
 
-    def get_cases(self, project_id, suite_id):
+    def get_cases(self, project_id, suite_id, type_id):
         return self.client.send_get(
-            'get_cases/{0}&suite_id={1}'.format(project_id, suite_id))
+            'get_cases/{0}&suite_id={1}&type_id={2}'.format(
+                project_id, suite_id, ','.join(
+                        [str(element) for element in type_id]
+                )))
 
     def get_suites(self, project_id):
         return self.client.send_get('get_suites/{0}'.format(project_id))
@@ -244,7 +257,7 @@ def main():
 
     _logger.debug("Writing case automation status to JSON dump...")
     c = Cases()
-    cases = t.get_cases(args.project, args.suite)
+    cases = t.get_cases(args.project, args.suite, args.type)
     c.write_custom_automation_status(
         cases, args.status, args.suite, args.stripped, p, s, args.output)
 
