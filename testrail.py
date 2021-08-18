@@ -38,10 +38,11 @@ def parse_args(cmdln_args):
     parser.add_argument(
         "--status",
         help="Custom automation status",
-        required=True,
+        required=False,
         type=int,
         nargs='+',
-        choices=range(1, 6)
+        choices=range(1, 7),
+        default=range(1, 7)
     )
 
     parser.add_argument(
@@ -52,16 +53,6 @@ def parse_args(cmdln_args):
         nargs='+',
         choices=range(1, 15),
         default=range(1, 15)
-    )
-
-    parser.add_argument(
-        "--stripped",
-        help="Stripped output (default: %(default)",
-        nargs='?',
-        const='no',
-        default='no',
-        required=True,
-        choices=['yes', 'no']
     )
 
     parser.add_argument(
@@ -80,6 +71,7 @@ class Status(Enum):
     UNSUITABLE = 3
     COMPLETED = 4
     DISABLED = 5
+    PARTIAL = 6
 
 
 class TestRail:
@@ -127,27 +119,22 @@ class TestRail:
 
 
 class Cases:
-    json_data, output = ([] for i in range(2))
-    statusFilename = str()
+    JSON_dataset = []
 
     def __init__(self):
-        self.json_data = []
-        self.output = []
-        self.statusFilename = str()
+        pass
 
     def write_custom_automation_status(
         self,
         cases,
-        status,
-        suite,
-        stripped,
         p,
         s,
         outfile
     ):
 
         (automation_untriaged, automation_suitable, automation_unsuitable,
-            automation_completed, automation_disabled) = ([] for i in range(5))
+            automation_completed, automation_disabled,
+            automation_partial) = ([] for i in range(6))
 
         for case in cases:
             if case['custom_automation_status'] == Status.DISABLED.value:
@@ -160,63 +147,31 @@ class Cases:
                 automation_untriaged.append(case)
             elif case['custom_automation_status'] == Status.COMPLETED.value:
                 automation_completed.append(case)
+            elif case['custom_automation_status'] == Status.PARTIAL.value:
+                automation_partial.append(case)
             else:
                 pass
 
-        for data in Status:
-            for i in status:
-                if i == data.value:
-                    self.statusFilename += "-" + data.name
-                    if i == Status.UNTRIAGED.value:
-                        self.output.append(automation_untriaged)
-                    elif i == Status.SUITABLE.value:
-                        self.output.append(automation_suitable)
-                    elif i == Status.UNSUITABLE.value:
-                        self.output.append(automation_unsuitable)
-                    elif i == Status.COMPLETED.value:
-                        self.output.append(automation_completed)
-                    elif i == Status.DISABLED.value:
-                        self.output.append(automation_disabled)
-                    else:
-                        pass
-
-        '''with open("custom-automation-status-{0}{1}.json".format(
-                  str(suite), statusFilename), "w") as f:
-            json.dump(output, f, sort_keys=True, indent=4)
-
-        if stripped == "yes":
-            with open("custom-automation-status-{0}{1}.json".format(
-                      str(suite), statusFilename)) as input:
-                o = json.load(input)
-                for x in o:
-                    for case in x:
-                        delete = [key for key in case if key != 'title' and
-                                  key != 'custom_automation_status']
-                        for key in delete:
-                            del case[key]
-            with open('custom-automation-status-{0}{1}.json'.format(str(suite),
-                      statusFilename), 'w') as f:
-                json.dump(o, f, sort_keys=True, indent=4)
-        else:
-            pass'''
-
-        self.json_data = {"project_name": p['name'],
-                          "suite": s['name'],
-                          "untriaged": len(automation_untriaged),
-                          "suitable": len(automation_suitable),
-                          "unsuitable": len(automation_unsuitable),
-                          "completed": len(automation_completed),
-                          "disabled": len(automation_disabled)}
+        self.JSON_dataset = {
+            "project_name": p['name'],
+            "suite": s['name'],
+            "untriaged": len(automation_untriaged),
+            "suitable": len(automation_suitable),
+            "unsuitable": len(automation_unsuitable),
+            "completed": len(automation_completed),
+            "disabled": len(automation_disabled),
+            "partial": len(automation_partial)
+        }
 
         with open(os.path.abspath(outfile), "w") as f:
-            json.dump(self.json_data, f, sort_keys=False, indent=4)
+            json.dump(self.JSON_dataset, f, sort_keys=False, indent=4)
 
 
 class Sections:
     def __init__(self):
         pass
 
-    def write_section_name(self, sections, suite, stripped):
+    def write_section_name(self, sections, suite):
         data = []
 
         for s in sections:
@@ -259,7 +214,7 @@ def main():
     c = Cases()
     cases = t.get_cases(args.project, args.suite, args.type)
     c.write_custom_automation_status(
-        cases, args.status, args.suite, args.stripped, p, s, args.output)
+        cases, p, s, args.output)
 
     _logger.debug("Writing SQL inserts for each state...")
     d = SQL()
@@ -268,10 +223,10 @@ def main():
         for i in args.status:
             if i == s.value:
                 print(d.json_to_sql({
-                    "project_name": c.json_data['project_name'],
-                    "suite": c.json_data['suite'],
+                    "project_name": c.JSON_dataset['project_name'],
+                    "suite": c.JSON_dataset['suite'],
                     "automation_state": s.name.lower(),
-                    "case_count": c.json_data[s.name.lower()]
+                    "case_count": c.JSON_dataset[s.name.lower()]
                 }))
 
 
