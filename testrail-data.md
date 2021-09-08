@@ -85,4 +85,3 @@ https://testrail.stage.mozaws.net
     3. Unsuitable
     4. Completed
     5. Disabled
-    6. Partial

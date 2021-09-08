@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import sys
-from enum import Enum
+from enum import Enum, auto
 
 from testrail_api import APIClient
 
@@ -36,13 +36,33 @@ def parse_args(cmdln_args):
     )
 
     parser.add_argument(
-        "--status",
+        "--automation-status",
         help="Custom automation status",
         required=False,
-        type=int,
+        type=str,
         nargs='+',
-        choices=range(1, 7),
-        default=range(1, 7)
+        choices=[
+            Status.UNTRIAGED.name,
+            Status.SUITABLE.name,
+            Status.UNSUITABLE.name,
+            Status.COMPLETED.name,
+            Status.DISABLED.name
+        ]
+    )
+
+    parser.add_argument(
+        "--sub-test-suite",
+        help="Sub test suite",
+        required=False,
+        type=str,
+        nargs='+',
+        choices=[
+            SubTestSuite.FUNCTIONAL.name,
+            SubTestSuite.SMOKE.name,
+            SubTestSuite.A11Y.name,
+            SubTestSuite.L10N.name,
+            SubTestSuite.SECURITY.name
+        ]
     )
 
     parser.add_argument(
@@ -66,12 +86,25 @@ def parse_args(cmdln_args):
 
 
 class Status(Enum):
-    UNTRIAGED = 1
-    SUITABLE = 2
-    UNSUITABLE = 3
-    COMPLETED = 4
-    DISABLED = 5
-    PARTIAL = 6
+    UNTRIAGED = auto()
+    SUITABLE = auto()
+    UNSUITABLE = auto()
+    COMPLETED = auto()
+    DISABLED = auto()
+
+
+class Coverage(Enum):
+    NONE = auto()
+    PARTIAL = auto()
+    FULL = auto()
+
+
+class SubTestSuite(Enum):
+    FUNCTIONAL = auto()
+    SMOKE = auto()
+    A11Y = auto()
+    L10N = auto()
+    SECURITY = auto()
 
 
 class TestRail:
@@ -113,10 +146,6 @@ class TestRail:
         return self.client.send_get(
             'get_sections/{0}&suite_id={1}'.format(project_id, suite_id))
 
-    def write_json(self, blob, file):
-        with open(file, "w") as f:
-            json.dump(blob, f, sort_keys=True, indent=4)
-
 
 class Cases:
     JSON_dataset = []
@@ -124,7 +153,7 @@ class Cases:
     def __init__(self):
         pass
 
-    def write_custom_automation_status(
+    def create_automation_status_count_dataset(
         self,
         cases,
         p,
@@ -133,8 +162,7 @@ class Cases:
     ):
 
         (automation_untriaged, automation_suitable, automation_unsuitable,
-            automation_completed, automation_disabled,
-            automation_partial) = ([] for i in range(6))
+            automation_completed, automation_disabled) = ([] for i in range(5))
 
         for case in cases:
             if case['custom_automation_status'] == Status.DISABLED.value:
@@ -147,8 +175,6 @@ class Cases:
                 automation_untriaged.append(case)
             elif case['custom_automation_status'] == Status.COMPLETED.value:
                 automation_completed.append(case)
-            elif case['custom_automation_status'] == Status.PARTIAL.value:
-                automation_partial.append(case)
             else:
                 pass
 
@@ -159,12 +185,21 @@ class Cases:
             "suitable": len(automation_suitable),
             "unsuitable": len(automation_unsuitable),
             "completed": len(automation_completed),
-            "disabled": len(automation_disabled),
-            "partial": len(automation_partial)
+            "disabled": len(automation_disabled)
         }
 
         with open(os.path.abspath(outfile), "w") as f:
             json.dump(self.JSON_dataset, f, sort_keys=False, indent=4)
+
+    def get_all_full_automated(self, cases):
+        return [case for case in cases if case['custom_automation_coverage'] ==
+                Coverage.FULL.value and case['custom_automation_status'] ==
+                Status.COMPLETED.value]
+
+    def get_all_partial_automated(self, cases):
+        return [case for case in cases if case['custom_automation_coverage'] ==
+                Coverage.PARTIAL.value and case['custom_automation_status'] ==
+                Status.COMPLETED.value]
 
 
 class Sections:
@@ -207,27 +242,59 @@ def main():
     t = TestRail()
     p = t.get_project(args.project)
 
-    _logger.debug("Fetching suite data from TestRail...")
+    _logger.debug("Fetching suite and case data from TestRail...")
     s = t.get_suite(args.suite)
 
-    _logger.debug("Writing case automation status to JSON dump...")
     c = Cases()
     cases = t.get_cases(args.project, args.suite, args.type)
-    c.write_custom_automation_status(
+    c.create_automation_status_count_dataset(
         cases, p, s, args.output)
 
-    _logger.debug("Writing SQL inserts for each state...")
-    d = SQL()
+    # for s in Status:
+    #     for i in args.status:
+    #         if i == s.value:
+    #             print(d.json_to_sql({
+    #                 "project_name": c.JSON_dataset['project_name'],
+    #                 "suite": c.JSON_dataset['suite'],
+    #                 "automation_state": s.name.lower(),
+    #                 "case_count": c.JSON_dataset[s.name.lower()]
+    #             }))
 
-    for s in Status:
-        for i in args.status:
-            if i == s.value:
-                print(d.json_to_sql({
-                    "project_name": c.JSON_dataset['project_name'],
-                    "suite": c.JSON_dataset['suite'],
-                    "automation_state": s.name.lower(),
-                    "case_count": c.JSON_dataset[s.name.lower()]
-                }))
+    # Example print all fully automated smoke & sanity
+    # $ python testrail.py --project=59 --suite=3192 --sub-test-suite SMOKE
+    if args.sub_test_suite:
+        for sub_suite in args.sub_test_suite:
+            if sub_suite == SubTestSuite.SMOKE.name:
+                [print(case['title']) for case in cases if SubTestSuite.SMOKE.value in case['custom_sub_test_suites']
+                 and case['custom_automation_status'] == Status.COMPLETED.value and case['custom_automation_coverage'] == Coverage.FULL.value]
+            else:
+                print(sub_suite)
+
+    
+
+    # E.g, print all full automated test cases in Smoke Tests with provided project/suite
+    #print(args.sub_test_suite)
+    #[print(case['title']) for case in cases if case['custom_automation_coverage'] ==
+    #            Coverage.FULL.value and case['custom_automation_status'] ==
+    #            Status.COMPLETED.value and SubTestSuite.SMOKE.value in case['custom_sub_test_suites']]
+
+
+    # Example print a list of all disabled test cases
+    if args.automation_status:
+        for i in args.automation_status:
+            if i == Status.DISABLED.name:
+                [print(case['title']) for case in cases if
+                 case['custom_automation_status'] is Status.DISABLED.value]
+
+    # Example get a list of all fully automated test cases
+    x = c.get_all_full_automated(cases)
+    _logger.debug("{} cases are fully automated [{}][{}] from query".
+                  format(len(x), Status.COMPLETED, Coverage.FULL))
+
+    # Example get a list of all partially automated test cases
+    f = c.get_all_partial_automated(cases)
+    _logger.debug("{} cases are partially automated [{}][{}] from query".
+                  format(len(f), Status.COMPLETED, Coverage.PARTIAL))
 
 
 if __name__ == '__main__':
